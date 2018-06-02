@@ -37,6 +37,11 @@ def nn_model_fn(features: tf.data.Dataset,
                           name="out")
     out_reshape = tf.reshape(out, (-1, 1))
     loss = tf.losses.sparse_softmax_cross_entropy(labels, out_reshape)
+    # loss_hook = tf.train.SummarySaverHook(
+    #     save_steps=100,
+    #     output_dir=params["logdir"],
+    #     summary_op=loss
+    # )
     opt = tf.train.MomentumOptimizer(params["learning_rate"],
                                      params["momentum"])
     train_op = opt.minimize(loss)
@@ -44,7 +49,8 @@ def nn_model_fn(features: tf.data.Dataset,
         mode=mode,
         predictions=out,
         loss=loss,
-        train_op=train_op
+        train_op=train_op,
+        # training_hooks=[loss_hook]
     )
 
 
@@ -88,29 +94,31 @@ if __name__ == "__main__":
                                 model_dir=temp_dir,
                                 params=params)
 
-    train = nn.train(nn_train_input_fn, steps=100)
+    nn.train(nn_train_input_fn, steps=100)
 
-    eval = nn.evaluate(nn_eval_input_fn)
-
-    _, _, _, _, names = import_cifar(data_path)
-    pred = nn.predict(nn_eval_input_fn, predict_keys=names)
-
-    writer = tf.summary.FileWriter(temp_dir)
-    loss_sum = tf.summary.scalar("loss_sum", "loss")
-    writer.add_summary(loss_sum)
-
-    init_global = tf.global_variables_initializer()
-    init_local = tf.local_variables_initializer()
-    with tf.Session() as sess:
-        sess.run(init_global)
-        sess.run(init_local)
-        count = 0
-        while count < 10000:
-            while True:
-                count += 1
-                try:
-                    sess.run(train)
-                except:
-                    # sess.run(eval)
-                    break
-        # sess.run(pred)
+    # train = nn.train(nn_train_input_fn, steps=100)
+    #
+    # eval = nn.evaluate(nn_eval_input_fn)
+    #
+    # _, _, _, _, names = import_cifar(data_path)
+    # pred = nn.predict(nn_eval_input_fn, predict_keys=names)
+    #
+    # writer = tf.summary.FileWriter(temp_dir)
+    # loss_sum = tf.summary.scalar("loss_sum", "loss")
+    # writer.add_summary(loss_sum)
+    #
+    # init_global = tf.global_variables_initializer()
+    # init_local = tf.local_variables_initializer()
+    # with tf.Session() as sess:
+    #     sess.run(init_global)
+    #     sess.run(init_local)
+    #     count = 0
+    #     while count < 10000:
+    #         while True:
+    #             count += 1
+    #             try:
+    #                 sess.run(train)
+    #             except:
+    #                 # sess.run(eval)
+    #                 break
+    #     # sess.run(pred)
