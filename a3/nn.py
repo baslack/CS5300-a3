@@ -11,29 +11,29 @@ def nn_model_fn(features: tf.data.Dataset,
                              units=params["d1_units"],
                              activation=params["activation"],
                              use_bias=params["use_bias"],
-                             kernel_initializer=params["kernel_init"],
-                             bias_initializer=params["bias_init"],
+                             # kernel_initializer=params["kernel_init"],
+                             # bias_initializer=params["bias_init"],
                              name="dense1")
     dense2 = tf.layers.dense(dense1,
                              units=params["d2_units"],
                              activation=params["activation"],
                              use_bias=params["use_bias"],
-                             kernel_initializer=params["kernel_init"],
-                             bias_initializer=params["bias_init"],
+                             # kernel_initializer=params["kernel_init"],
+                             # bias_initializer=params["bias_init"],
                              name="dense2")
     dense3 = tf.layers.dense(dense2,
                              units=params["d3_units"],
                              activation=params["activation"],
                              use_bias=params["use_bias"],
-                             kernel_initializer=params["kernel_init"],
-                             bias_initializer=params["bias_init"],
+                             # kernel_initializer=params["kernel_init"],
+                             # bias_initializer=params["bias_init"],
                              name="dense3")
     out = tf.layers.dense(dense3,
                           units=10,
                           activation=tf.nn.softmax,
                           use_bias=params["use_bias"],
-                          kernel_initializer=params["kernel_init"],
-                          bias_initializer=params["bias_init"],
+                          # kernel_initializer=params["kernel_init"],
+                          # bias_initializer=params["bias_init"],
                           name="out")
     out_reshape = tf.reshape(out, (-1, 1))
     loss = tf.losses.sparse_softmax_cross_entropy(labels, out_reshape)
@@ -99,8 +99,11 @@ if __name__ == "__main__":
     loss_sum = tf.summary.scalar("loss_sum", "loss")
     writer.add_summary(loss_sum)
 
-    tf.initialize_all_variables()
+    init_global = tf.global_variables_initializer()
+    init_local = tf.local_variables_initializer()
     with tf.Session() as sess:
+        sess.run(init_global)
+        sess.run(init_local)
         count = 0
         while count < 10000:
             while True:
