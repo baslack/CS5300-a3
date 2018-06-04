@@ -51,9 +51,9 @@ data_path = "C:\\Dropbox\\CS5300\\tensorflow_cifar_scratch\\CIFAR_data\\cifar-10
 if __name__ == "__main__":
     train_x, train_y, test_x, test_y, labels = import_cifar(data_path)
     features, labels = prep_dataset(train_x, train_y)
-    iterator_features = features.make_one_shot_iterator()
-    iterator_labels = labels.make_one_shot_iterator()
-    next_item = (iterator_features.get_next(), iterator_labels.get_next())
+    temp_dataset = tf.data.Dataset.zip((features, labels)).shuffle(50000).repeat().batch(5)
+    next_item = temp_dataset.make_one_shot_iterator().get_next()
+
     with tf.Session() as sess:
         for i in range(10):
             print(sess.run(next_item))
