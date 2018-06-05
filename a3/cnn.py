@@ -7,13 +7,12 @@ def cnn_model_fn(features: tf.Tensor,
                  labels: tf.Tensor,
                  mode: tf.estimator.ModeKeys,
                  params: Dict) -> tf.estimator.EstimatorSpec:
-
     weight_decay = 1e-4
 
-    input_ = tf.reshape(features, (-1, 32, 32, 3))
+    input_ = tf.reshape(features, params["features_shape"])
 
     if labels is not None:
-        labels = tf.reshape(labels, (-1, 10))
+        labels = tf.reshape(labels, params["labels_shape"])
 
     # conv group 1
     conv1 = tf.layers.separable_conv2d(input_,
@@ -85,7 +84,7 @@ def cnn_model_fn(features: tf.Tensor,
 
     # pred_one_hot = tf.reshape(tf.one_hot([pred_class], depth=10, on_value=1, off_value=0), (-1, ))
 
-    pred_one_hot = tf.reshape(tf.one_hot([pred_class], depth=10, on_value=1, off_value=0), (-1, 10))
+    pred_one_hot = tf.reshape(tf.one_hot([pred_class], depth=10, on_value=1, off_value=0), params["labels_shape"])
 
     # Compute evaluation metrics.
     accuracy = tf.metrics.accuracy(labels=labels,
@@ -146,6 +145,8 @@ if __name__ == "__main__":
         "learning_rate": 0.01,
         "momentum": 0.9,
         "logdir": temp_dir,
+        "features_shape": (-1, 32, 32, 3),
+        "labels_shape": (-1, 10)
     }
     cnn = tf.estimator.Estimator(cnn_model_fn,
                                  model_dir=temp_dir,

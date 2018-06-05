@@ -8,9 +8,9 @@ def nn_model_fn(features: tf.data.Dataset,
                 mode: tf.estimator.ModeKeys,
                 params: Dict) -> tf.estimator.EstimatorSpec:
 
-    input_ = tf.reshape(features, (-1, 3072))
+    input_ = tf.reshape(features, params["features_shape"])
     if labels is not None:
-        labels = tf.reshape(labels, (-1, 10))
+        labels = tf.reshape(labels, params["labels_shape"])
 
     weight_decay = 1e-4
 
@@ -50,7 +50,7 @@ def nn_model_fn(features: tf.data.Dataset,
 
     loss_mean = tf.reduce_mean(loss)
 
-    pred_one_hot = tf.reshape(tf.one_hot([pred_class], depth=10, on_value=1, off_value=0), (-1, 10))
+    pred_one_hot = tf.reshape(tf.one_hot([pred_class], depth=10, on_value=1, off_value=0), params["labels_shape"])
 
     # Compute evaluation metrics.
     accuracy = tf.metrics.accuracy(labels=labels,
@@ -113,7 +113,9 @@ if __name__ == "__main__":
         "use_bias": True,
         "learning_rate": 0.01,
         "momentum": 0.9,
-        "logdir": temp_dir
+        "logdir": temp_dir,
+        "features_shape": (-1, 3072),
+        "labels_shape": (-1, 10)
     }
     nn = tf.estimator.Estimator(nn_model_fn,
                                 model_dir=temp_dir,
