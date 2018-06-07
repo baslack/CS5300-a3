@@ -73,9 +73,10 @@ MNIST_DATA_DIR = r"C:\Dropbox\CS5300\tensorflow_mnist\MNIST-data"
 
 if __name__ == "__main__":
     from a3.cnn import cnn_model_fn
+    from a3.nn import nn_model_fn
 
     train_x, train_y, test_x, test_y = import_mnist(MNIST_DATA_DIR)
-    temp_dir = "../tmp/mnist_test"
+    temp_dir = os.path.expanduser("~/Desktop/mnist_cnn_test")
     params = {
         "activation": tf.nn.leaky_relu,
         "use_bias": True,
@@ -89,10 +90,25 @@ if __name__ == "__main__":
                                  model_dir=temp_dir,
                                  params=params)
 
-    for i in range(5):
-        cnn.train(lambda: mnist_train_input_fn(train_x["ar"], train_y["ar"]), steps=3000)
+    for i in range(6):
+        cnn.train(lambda: mnist_train_input_fn(train_x["ar"], train_y["ar"]), steps=1000)
         cnn.evaluate(lambda: mnist_eval_input_fn(test_x["ar"], test_y["ar"]))
     preds = cnn.predict(lambda: mnist_eval_input_fn(test_x["ar"], test_y["ar"]), predict_keys='class_ids')
+    for this in preds:
+        print(this['class_ids'][0])
+        break
+
+    temp_dir = os.path.expanduser("~/Desktop/mnist_nn_test")
+    params["features_shape"] = (-1, 784)
+    params["units"] = [2048, 2048, 2048]
+    nn = tf.estimator.Estimator(nn_model_fn,
+                                model_dir=temp_dir,
+                                params=params)
+
+    for i in range(6):
+        nn.train(lambda: mnist_train_input_fn(train_x["ar"], train_y["ar"]), steps=1000)
+        nn.evaluate(lambda: mnist_eval_input_fn(test_x["ar"], test_y["ar"]))
+    preds = nn.predict(lambda: mnist_eval_input_fn(test_x["ar"], test_y["ar"]), predict_keys='class_ids')
     for this in preds:
         print(this['class_ids'][0])
         break

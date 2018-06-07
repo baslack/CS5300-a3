@@ -1,13 +1,13 @@
 import tensorflow as tf
 from typing import Dict
-from a3.cifar import import_cifar, prep_dataset, data_path
+from a3.cifar import import_cifar, data_path
+import os
 
 
 def nn_model_fn(features: tf.data.Dataset,
                 labels: tf.data.Dataset,
                 mode: tf.estimator.ModeKeys,
                 params: Dict) -> tf.estimator.EstimatorSpec:
-
     input_ = tf.reshape(features, params["features_shape"])
     if labels is not None:
         labels = tf.reshape(labels, params["labels_shape"])
@@ -87,26 +87,25 @@ TEST_SET_SIZE = 10000
 TRAIN_ITER_SIZE = 10000
 
 
-def nn_train_input_fn() -> tf.data.Dataset:
-    train_x, train_y, _, _, _ = import_cifar(data_path)
-    train_x, train_y = prep_dataset(train_x, train_y, bReshape=False)
-    # train_x = train_x.map(lambda x: tf.reshape(x, (-1, 3072)))
-    temp_dataset = tf.data.Dataset.zip((train_x, train_y))
-    temp_dataset = temp_dataset.shuffle(TRAIN_SET_SIZE).repeat().batch(TRAIN_BATCHSIZE)
+def nn_train_input_fn(to_features, to_labels, batch_size=100):
+    features = tf.data.Dataset.from_tensor_slices(to_features).map(lambda x: x / 255)
+    one_hot = tf.one_hot(list(range(10)), depth=10, on_value=1, off_value=0)
+    labels = tf.data.Dataset.from_tensor_slices(to_labels).map(lambda x: one_hot[x, :])
+    temp_dataset = tf.data.Dataset.zip((features, labels)).shuffle(TRAIN_SET_SIZE).repeat().batch(batch_size)
     return temp_dataset
 
 
-def nn_eval_input_fn() -> tf.data.Dataset:
-    _, _, test_x, test_y, _ = import_cifar(data_path)
-    test_x, test_y = prep_dataset(test_x, test_y, bReshape=False)
-    # test_x = test_x.map(lambda x: tf.reshape(x, (-1, 3072)))
-    temp_dataset = tf.data.Dataset.zip((test_x, test_y))
+def nn_eval_input_fn(to_features, to_labels):
+    features = tf.data.Dataset.from_tensor_slices(to_features).map(lambda x: x / 255)
+    one_hot = tf.one_hot(list(range(10)), depth=10, on_value=1, off_value=0)
+    labels = tf.data.Dataset.from_tensor_slices(to_labels).map(lambda x: one_hot[x, :])
+    temp_dataset = tf.data.Dataset.zip((features, labels))
     return temp_dataset
 
 
 if __name__ == "__main__":
-    _, _, _, _, names = import_cifar(data_path)
-    temp_dir = "../tmp/nn_test"
+    train_x, train_y, test_x, test_y, names = import_cifar(data_path)
+    temp_dir = os.path.expanduser("~/Desktop/nn_test")
     params = {
         "units": [2048, 2048, 2048],
         "activation": tf.nn.leaky_relu,
@@ -121,10 +120,10 @@ if __name__ == "__main__":
                                 model_dir=temp_dir,
                                 params=params)
 
-    for i in range(5):
-        nn.train(nn_train_input_fn, steps=1000)
-        nn.evaluate(nn_eval_input_fn)
-    preds = nn.predict(nn_eval_input_fn)
+    for i in range(6):
+        nn.train(lambda: nn_train_input_fn(train_x, train_y), steps=1000)
+        nn.evaluate(lambda: nn_eval_input_fn(test_x, test_y))
+    preds = nn.predict(lambda: nn_eval_input_fn(test_x, test_y))
     for this in preds:
         print(repr(this))
         break

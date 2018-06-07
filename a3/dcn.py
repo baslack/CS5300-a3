@@ -4,7 +4,7 @@ from a3.cifar import import_cifar, data_path
 import os
 
 
-def cnn_model_fn(features: tf.Tensor,
+def dcn_model_fn(features: tf.Tensor,
                  labels: tf.Tensor,
                  mode: tf.estimator.ModeKeys,
                  params: Dict) -> tf.estimator.EstimatorSpec:
@@ -15,67 +15,76 @@ def cnn_model_fn(features: tf.Tensor,
     if labels is not None:
         labels = tf.reshape(labels, params["labels_shape"])
 
+    k = 16
+
     # conv group 1
-    norm1 = tf.layers.batch_normalization(input_)
-    conv1 = tf.layers.separable_conv2d(norm1,
-                                       32,
-                                       3,
-                                       strides=1,
-                                       padding="same",
-                                       activation=params["activation"],
-                                       use_bias=params["use_bias"],
-                                       pointwise_regularizer=tf.keras.regularizers.l2(weight_decay),
-                                       depthwise_regularizer=tf.keras.regularizers.l2(weight_decay),
-                                       bias_regularizer=tf.keras.regularizers.l2(weight_decay)
-                                       )
-    dropout1 = tf.layers.dropout(conv1, rate=0.2)
-    pool1 = tf.layers.max_pooling2d(dropout1, 2, 2)
-
-    # conv group 2
-    norm2 = tf.layers.batch_normalization(pool1)
-    conv2 = tf.layers.conv2d(norm2,
-                             64,
-                             3,
-                             strides=1,
-                             padding="same",
-                             activation=params["activation"],
-                             use_bias=params["use_bias"],
-                             kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
-                             bias_regularizer=tf.keras.regularizers.l2(weight_decay)
-                             )
-    dropout2 = tf.layers.dropout(conv2, rate=0.3)
-    pool2 = tf.layers.average_pooling2d(dropout2, 2, 2)
-
-    # conv group 3
-    norm3 = tf.layers.batch_normalization(pool2)
-    conv3 = tf.layers.conv2d(norm3,
-                             128,
-                             3,
-                             strides=1,
-                             padding="same",
-                             activation=params["activation"],
-                             use_bias=params["use_bias"],
-                             kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
-                             bias_regularizer=tf.keras.regularizers.l2(weight_decay)
-                             )
-    dropout3 = tf.layers.dropout(conv3, rate=0.4)
-    pool3 = tf.layers.average_pooling2d(dropout3, 2, 2)
-
-    #conv group 4
-    norm4 = tf.layers.batch_normalization(pool3)
-    conv4 = tf.layers.conv2d(norm4,
-                             256,
-                             1,
+    norm1 = tf.layers.batch_normalization(input_, name="init_bn")
+    conv1 = tf.layers.conv2d(norm1,
+                             k,
+                             7,
                              strides=1,
                              padding="same",
                              activation=params["activation"],
                              use_bias=params["use_bias"],
                              kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
                              bias_regularizer=tf.keras.regularizers.l2(weight_decay),
-                             )
-    dropout4 = tf.layers.dropout(conv4, rate=0.4)
+                             name="init_conv")
+    pool = tf.layers.max_pooling2d(conv1, 2, 1, padding="same", name="init_max")
+    dense = pool
 
-    flat = tf.layers.flatten(dropout4)
+    for j in [x + 1 for x in range(2)]:
+        # dense group j
+        for i in range(4):
+            norm = tf.layers.batch_normalization(dense, name="norm1x1_{}-{}".format(j, i))
+            conv = tf.layers.conv2d(norm,
+                                    k,
+                                    1,
+                                    strides=1,
+                                    padding="same",
+                                    activation=params["activation"],
+                                    use_bias=params["use_bias"],
+                                    kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                    bias_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                    name="conv1x1_{}-{}".format(j, i)
+                                    )
+            norm = tf.layers.batch_normalization(conv, name="norm3x3_{}-{}".format(j, i))
+            conv = tf.layers.conv2d(norm,
+                                    k,
+                                    3,
+                                    strides=1,
+                                    padding="same",
+                                    activation=params["activation"],
+                                    use_bias=params["use_bias"],
+                                    kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                    bias_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                    name="conv3x3_{}-{}".format(j, i)
+                                    )
+            if i == 1:
+                dense = conv
+            else:
+                dense = tf.concat((dense, conv), axis=1, name="dense_{}-{}".format(j, i))
+
+        # transitional layer
+        norm = tf.layers.batch_normalization(conv, name="t_norm_{}".format(j))
+        trans = tf.layers.conv2d(norm,
+                                 k,
+                                 1,
+                                 strides=1,
+                                 padding="same",
+                                 activation=params["activation"],
+                                 use_bias=params["use_bias"],
+                                 kernel_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                 bias_regularizer=tf.keras.regularizers.l2(weight_decay),
+                                 name="trans_{}".format(j)
+                                 )
+        # if j == 1:
+        #     pool = tf.layers.max_pooling2d(trans, 2, 2, name="mpool_{}".format(j))
+        # else:
+        pool = tf.layers.average_pooling2d(trans, 2, 2, name="apool_{}".format(j))
+
+        dense = pool
+
+    flat = tf.layers.flatten(dense)
 
     out = tf.layers.dense(flat,
                           units=10,
@@ -136,7 +145,7 @@ TEST_SET_SIZE = 10000
 TRAIN_ITER_SIZE = 10000
 
 
-def cnn_train_input_fn(to_features, to_labels, batch_size=100):
+def dcn_train_input_fn(to_features, to_labels, batch_size=100):
     features = tf.data.Dataset.from_tensor_slices(to_features).map(lambda x: x / 255)
     one_hot = tf.one_hot(list(range(10)), depth=10, on_value=1, off_value=0)
     labels = tf.data.Dataset.from_tensor_slices(to_labels).map(lambda x: one_hot[x, :])
@@ -144,7 +153,7 @@ def cnn_train_input_fn(to_features, to_labels, batch_size=100):
     return temp_dataset
 
 
-def cnn_eval_input_fn(to_features, to_labels):
+def dcn_eval_input_fn(to_features, to_labels):
     features = tf.data.Dataset.from_tensor_slices(to_features).map(lambda x: x / 255)
     one_hot = tf.one_hot(list(range(10)), depth=10, on_value=1, off_value=0)
     labels = tf.data.Dataset.from_tensor_slices(to_labels).map(lambda x: one_hot[x, :])
@@ -154,7 +163,7 @@ def cnn_eval_input_fn(to_features, to_labels):
 
 if __name__ == "__main__":
     train_x, train_y, test_x, test_y, names = import_cifar(data_path)
-    temp_dir = os.path.expanduser("~/Desktop/cnn_test")
+    temp_dir = os.path.expanduser("~/Desktop/dcn_test")
     params = {
         "activation": tf.nn.leaky_relu,
         "use_bias": True,
@@ -164,14 +173,14 @@ if __name__ == "__main__":
         "features_shape": (-1, 32, 32, 3),
         "labels_shape": (-1, 10)
     }
-    cnn = tf.estimator.Estimator(cnn_model_fn,
+    cnn = tf.estimator.Estimator(dcn_model_fn,
                                  model_dir=temp_dir,
                                  params=params)
 
-    for i in range(1):
-        cnn.train(lambda: cnn_train_input_fn(train_x, train_y), steps=1000)
-        cnn.evaluate(lambda: cnn_eval_input_fn(test_x, test_y))
-    preds = cnn.predict(lambda: cnn_eval_input_fn(test_x, test_y), predict_keys='class_ids')
+    for i in range(10):
+        cnn.train(lambda: dcn_train_input_fn(train_x, train_y), steps=1000)
+        cnn.evaluate(lambda: dcn_eval_input_fn(test_x, test_y))
+    preds = cnn.predict(lambda: dcn_eval_input_fn(test_x, test_y), predict_keys='class_ids')
     for this in preds:
         print(names[this['class_ids'][0]])
         break
